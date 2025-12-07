@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.linear_model import LogisticRegression
 
 # Set page configuration
 st.set_page_config(
@@ -15,8 +15,29 @@ st.set_page_config(
 # Load the trained model
 @st.cache_resource
 def load_model():
-    with open('linkedin_model.pkl', 'rb') as file:
-        model = pickle.load(file)
+    # Always train the model at startup (cached per Streamlit session).
+    s = pd.read_csv('social_media_usage.csv')
+
+    def clean_sm(x):
+        return np.where(x == 1, 1, 0)
+
+    ss = pd.DataFrame({
+        'sm_li': clean_sm(s['web1h']),
+        'income': np.where(s['income'] > 9, np.nan, s['income']),
+        'education': np.where(s['educ2'] > 8, np.nan, s['educ2']),
+        'parent': np.where(s['par'] == 1, 1, np.where(s['par'] == 2, 0, np.nan)),
+        'married': np.where(s['marital'] == 1, 1, np.where(s['marital'] == 2, 0, np.nan)),
+        'female': np.where(s['gender'] == 2, 1, np.where(s['gender'] == 1, 0, np.nan)),
+        'age': np.where(s['age'] > 98, np.nan, s['age'])
+    }).dropna()
+
+    X = ss[['income', 'education', 'parent', 'married', 'female', 'age']]
+    y = ss['sm_li']
+
+    with st.spinner('Training model — this may take a few seconds...'):
+        model = LogisticRegression(class_weight='balanced', random_state=42, max_iter=1000)
+        model.fit(X, y)
+
     return model
 
 model = load_model()
